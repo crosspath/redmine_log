@@ -7,7 +7,7 @@ class Log < ActiveRecord::Base
       method: env['REQUEST_METHOD'],
       query: env['REQUEST_URI'],
       parameters: parameters.to_json,
-      controller: parameters['controller'],
+      controller: parameters[:controller],
       response_code: code,
       referer: env['action_controller.instance'].back_url
     )
