@@ -6,7 +6,7 @@ module ActionDispatch
   class RequestId
     def call_with_log(env)
       ret = call_without_log(env)
-      unless ApplicationController.dev?
+      if Setting.plugin_log['log_enabled']
         l = Log.new_log(env, ret[0])
         l.save
       end
