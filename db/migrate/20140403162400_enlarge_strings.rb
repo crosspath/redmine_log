@@ -1,4 +1,4 @@
-class AddIndexToLogs < ActiveRecord::Migration
+class EnlargeStrings < ActiveRecord::Migration
   COLS = %w/query parameters referer/
   def up
     COLS.each { |c| change_column :logs, c, :text, limit: 4096 }

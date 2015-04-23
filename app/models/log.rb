@@ -1,5 +1,7 @@
 class Log < ActiveRecord::Base
+  attr_accessible :method, :query, :parameters, :controller, :response_code, :referer
   belongs_to :user
+
   def self.new_log(env, code)
     parameters = env['action_dispatch.request.path_parameters']
     session = env['rack.session']
@@ -9,21 +11,9 @@ class Log < ActiveRecord::Base
       parameters: parameters.to_json,
       controller: parameters[:controller],
       response_code: code,
-      referer: env['action_controller.instance'].back_url
+      referer: env['action_controller.instance'].try(:back_url)
     )
-    l.user = User.try_find(session['user_id']) if session && session['user_id']
+    l.user = User.where(id: session['user_id']).first if session && session['user_id']
     l
   end
-end
-
-module LogPlugin
-  module UserPatch
-    def self.included(base)
-      base.class_eval { has_many :logs }
-    end
-  end
-end
-
-ActionDispatch::Callbacks.to_prepare do
-  User.send(:include, LogPlugin::UserPatch) unless User.included_modules.include?(LogPlugin::UserPatch)
 end
