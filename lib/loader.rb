@@ -1,2 +1,2 @@
-require_relative 'action_dispatch/middleware/request_id'
+require_relative 'log_middleware'
 require_relative 'user_patch'

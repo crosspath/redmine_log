@@ -4,7 +4,7 @@ Redmine::Plugin.register :redmine_log do
   name 'Log plugin'
   author 'Ночевнов Евгений'
   description 'Регистрация обращений к Redmine'
-  version '0.0.5'
+  version '0.0.6'
   author_url 'http://crosspath.bplaced.net'
   url 'https://github.com/crosspath/redmine_log'
   

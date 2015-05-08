@@ -1,7 +1,8 @@
 class Log < ActiveRecord::Base
   SESSION_LENGTH = 30
 
-  attr_accessible :method, :query, :parameters, :controller, :response_code, :referer
+  attr_accessible :method, :query, :parameters, :controller, :response_code, :referer, :referer_controller, :first_id
+
   belongs_to :user
 
   def self.save_log(env, code)
