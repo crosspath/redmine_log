@@ -7,8 +7,7 @@ module ActionDispatch
     def call_with_log(env)
       ret = call_without_log(env)
       if Setting.plugin_redmine_log['log_enabled']
-        l = Log.new_log(env, ret[0])
-        l.save
+        Log.save_log(env, ret[0])
       end
       ret
     rescue => e
