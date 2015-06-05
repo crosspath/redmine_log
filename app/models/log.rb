@@ -11,7 +11,7 @@ class Log < ActiveRecord::Base
     parameters = env['action_dispatch.request.path_parameters']
     session = env['rack.session']
     ref = env['action_controller.instance'].try(:back_url)
-    
+
     now = DateTime.now
     method = env['REQUEST_METHOD']
 

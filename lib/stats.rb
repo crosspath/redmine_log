@@ -12,7 +12,7 @@ module Stats
 
       # Визиты
       # test: Log.where.not(first_id: nil).where(:created_at => from .. to).pluck(:first_id).uniq.size
-      scope :visits, lambda { select('count(distinct first_id) as first_id')[0].first_id }
+      scope :visits, lambda { select('count(first_id) as first_id').where('id = first_id')[0].first_id }
 
       # Посетители
       # test: Log.where.not(user_id: nil).where(:created_at => from .. to).pluck(:user_id).uniq.size
