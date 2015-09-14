@@ -1,7 +1,7 @@
 class Log < ActiveRecord::Base
   SESSION_LENGTH = 30
 
-  attr_accessible :method, :query, :parameters, :controller, :response_code, :referer, :referer_controller, :first_id
+  attr_accessible :http_method, :query, :parameters, :controller, :response_code, :referer, :referer_controller, :first_id
 
   belongs_to :user
 
@@ -11,17 +11,10 @@ class Log < ActiveRecord::Base
     parameters = env['action_dispatch.request.path_parameters']
     session = env['rack.session']
     ref = env['action_controller.instance'].try(:back_url)
-
-    now = DateTime.now
-    method = env['REQUEST_METHOD']
-
-    ref_controller = if ref
-                       a = ref && ref.gsub(/[^\w[[:punct:]]=]+/){ |x| URI.encode_www_form_component(x) }
-                       (a && Rails.application.routes.recognize_path(a)[:controller] rescue '-')
-                     end
+    ref_controller = find_ref_controller(ref)
 
     l = Log.new(
-      method: method,
+      http_method: env['REQUEST_METHOD'],
       query: env['REQUEST_URI'],
       parameters: parameters.to_json,
       controller: parameters[:controller],
@@ -29,17 +22,37 @@ class Log < ActiveRecord::Base
       referer: ref,
       referer_controller: ref_controller
     )
-    l.user = User.where(id: session['user_id']).first if session && session['user_id']
+    l.user = User.find_by(id: session['user_id']) if session && session['user_id']
+    first_in_session = find_current_session_start_for_user(l.user) if l.user.present?
 
-    # first_id - первый элемент в цепочке
-    cond = {user_id: l.user_id, created_at: (now.advance minutes: -SESSION_LENGTH) .. now}
-    first_id = Log.select('id, first_id').where(cond).order(id: :desc).first.try(:first_id)
-
-    l.first_id = first_id if first_id
+    l.first_id = first_in_session.first_id if first_in_session
     l.save
-    unless first_id
-      l.first_id = l.id
-      l.save
+    l.update(first_id: l.id) unless first_in_session
+  end
+  
+  def self.find_ref_controller(ref)
+    return nil if ref.blank?
+    
+    path = ref.gsub(/[^\w[[:punct:]]=]+/){ |x| URI.encode_www_form_component(x) }
+    path && Rails.application.routes.recognize_path(path)[:controller]
+  rescue
+    nil
+  end
+  
+  # first_id указывает на первый элемент в сессии
+  def self.find_current_session_start_for_user(user)
+    now = DateTime.now
+    cond = {user_id: user.id, created_at: (now - SESSION_LENGTH.minutes) .. now}
+    Log.select('id, first_id').order(id: :desc).find_by(cond)
+  end
+  
+  def safe_parse_parameters
+    if parameters.present?
+      JSON.parse(parameters)
+    else
+      nil
     end
+  rescue JSON::ParserError
+    nil
   end
 end
