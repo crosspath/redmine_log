@@ -1,0 +1,10 @@
+GEM
+  remote: http://rubygems.org/
+  specs:
+    apriori-algorithm (1.0.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  apriori-algorithm
