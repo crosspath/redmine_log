@@ -1,7 +1,7 @@
 class Log < ActiveRecord::Base
   SESSION_LENGTH = 30
 
-  attr_accessible :http_method, :query, :parameters, :controller, :response_code, :referer, :referer_controller, :first_id
+  attr_accessible :http_method, :query, :parameters, :controller, :action, :response_code, :referer, :referer_controller, :first_id
 
   belongs_to :user
 
@@ -18,6 +18,7 @@ class Log < ActiveRecord::Base
       query: env['REQUEST_URI'],
       parameters: parameters.to_json,
       controller: parameters[:controller],
+      action: parameters[:action],
       response_code: code,
       referer: ref,
       referer_controller: ref_controller
@@ -54,5 +55,9 @@ class Log < ActiveRecord::Base
     end
   rescue JSON::ParserError
     nil
+  end
+  
+  def controller_and_action
+    "#{controller}##{action}"
   end
 end

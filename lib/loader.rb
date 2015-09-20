@@ -1,3 +1,6 @@
 require_relative 'log_middleware'
 require_relative 'user_patch'
-require_relative 'stats'
+require_relative 'array_patch'
+require_relative 'hash_patch'
+require_relative 'metrics'
+require_relative 'analysis'
