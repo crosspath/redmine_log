@@ -6,7 +6,7 @@ class AddActionToLogs < ActiveRecord::Migration
     reversible do |dir|
       dir.up do
         puts 'Update columns "controller" and "action"'
-        Log.where.find_each do |log|
+        Log.find_each do |log|
           params = log.safe_parse_parameters
           log.update!(controller: params['controller'], action: params['action']) if params && params != 'null'
         end

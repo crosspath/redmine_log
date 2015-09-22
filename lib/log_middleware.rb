@@ -5,8 +5,20 @@ module LogPlugin
     end
 
     def call(env)
+      if Setting.plugin_redmine_log['log_enabled']
+        call_and_save_log(env)
+      else
+        @app.call(env)
+      end
+    end
+    
+    protected
+    
+    def call_and_save_log(env)
+      time_start = Time.now
       ret = @app.call(env) # [code Fixnum, headers Hash, body String]
-      Log.save_log(env, ret[0]) if Setting.plugin_redmine_log['log_enabled']
+      duration = Time.now - time_start
+      Log.save_log(env, ret[0], duration)
       ret
     rescue => e
       Rails.logger.error "#{e.to_s}\r\n#{e.backtrace.join("\r\n")}"

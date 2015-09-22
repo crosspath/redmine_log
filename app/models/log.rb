@@ -7,7 +7,7 @@ class Log < ActiveRecord::Base
 
   scope :interval, -> (from = nil, to = from + 1.day) { from.nil? ? where(nil) : where(created_at: from .. to) }
 
-  def self.save_log(env, code)
+  def self.save_log(env, code, duration)
     parameters = env['action_dispatch.request.path_parameters']
     session = env['rack.session']
     ref = env['action_controller.instance'].try(:back_url)
@@ -21,7 +21,8 @@ class Log < ActiveRecord::Base
       action: parameters[:action],
       response_code: code,
       referer: ref,
-      referer_controller: ref_controller
+      referer_controller: ref_controller,
+      duration: duration
     )
     l.user = User.find_by(id: session['user_id']) if session && session['user_id']
     first_in_session = find_current_session_start_for_user(l.user) if l.user.present?
