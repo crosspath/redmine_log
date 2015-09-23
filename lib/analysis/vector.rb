@@ -23,7 +23,7 @@ module LogPlugin
       
       # расчёт разницы между соседями по различиям их значений
       def distance(node1, node2)
-        node1.size.times.map { |t| (node1[t] - node2[t]).abs }.sum
+        Math.sqrt(node1.size.times.map { |t| (node1[t] - node2[t]) ** 2 }.sum)
       end
     end
   end

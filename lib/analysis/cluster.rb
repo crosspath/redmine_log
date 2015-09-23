@@ -49,7 +49,7 @@ module LogPlugin
       # среднеквадратическая ошибка
       # center - эталон
       def mean_square_error(center, cluster)
-        square_errors_sum = cluster.reduce(0) { |a, elem| a + (Vector.distance(elem, center) / elem.size) ** 2 }
+        square_errors_sum = cluster.reduce(0) { |a, elem| a + (Vector.distance(elem, center)) ** 2 }
         Math.sqrt(square_errors_sum.to_f / cluster.size)
       end
       
