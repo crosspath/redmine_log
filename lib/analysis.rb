@@ -66,18 +66,22 @@ module LogPlugin
         # в каждом кластере определяем, какие контроллеры используются (т.е. значения > 0)
         using_controllers = Cluster.extract_characteristics(clusters, controllers)
         
-        {clusters: clusters, controllers: using_controllers, differences: differences, errors: errors}
+        {clusters: clusters, controllers: using_controllers, differences: differences, errors: errors, labels: controllers}
       end
       
       def user_segments(clusters_count = 4, options = {})
         options.symbolize_keys!
         options[:threshold] = options[:threshold] || 0.1
         # [[controller, ...], ...]
-        rows = select(:controller, :action, :user_id).where('controller is not null and action is not null')
-        data = rows.group_by(&:user_id).values.map { |x| x.map(&:controller_and_action) }
+        conditions = 'controller is not null and action is not null and user_id is not null'
+        rows = select(:controller, :action, :user_id).where(conditions)
+        functions_by_user = rows.group_by(&:user_id).map do |user_id, logs|
+          [user_id, logs.map(&:controller_and_action)]
+        end.to_h
+        data = functions_by_user.values
         # теперь сформируем матрицу сходства (близости)
         # [[количество запросов пользователя j=0 по функции i=0; i=1; ... i=N], ...]
-        functions = rows.map(&:controller_and_action).uniq
+        functions = data.flatten.uniq
         matrix = LogPlugin::Analysis::Matrix.new(data) do |data_row, matrix_row|
           functions.each { |c| matrix_row << data_row.select { |elem| elem == c }.count }
         end
@@ -89,7 +93,18 @@ module LogPlugin
         # надо определить, что является общим для пользователей в каждом кластере
         characteristics = Cluster.common_characteristics(clusters, functions, options)
         
-        {clusters: clusters, characteristics: characteristics, differences: differences, errors: errors}
+        # какие пользователи к каким кластерам относятся
+        users_clusters = Array.new(clusters_count) { [] }
+        clusters.each_with_index do |cluster, cluster_index|
+          cluster.each do |elem|
+            index = matrix.index(elem)
+            user_actions = functions_by_user.to_a[index]
+            users_clusters[cluster_index] << user_actions[0] # user_id
+          end
+        end
+        
+        {clusters: clusters, characteristics: characteristics, users_clusters: users_clusters,
+          differences: differences, errors: errors, labels: functions}
       end
     end
   end

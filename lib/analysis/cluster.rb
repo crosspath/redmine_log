@@ -82,29 +82,16 @@ module LogPlugin
         threshold = options[:threshold] || 0.1
         clusters_size = clusters.size
         
-        result = Array.new(clusters_size) { Hash.new_with_default 0 } # [{elem: count, ...}, ...]
+        result = Array.new(clusters_size) { Array.new } # [{elem: count, ...}, ...]
         centers = clusters.map { |cluster| cluster_center(cluster) }
         
-        clusters.each_with_index do |cluster, index1|
-          offset_index2 = index1 + 1
-          clusters[offset_index2 .. -1].each_with_index do |cluster, i|
-            index2 = offset_index2 + i
-            subt = Vector.subtract_vectors(centers[index1], centers[index2], threshold)
-            subt.each_with_index do |elem, label_index|
-              label = labels[label_index]
-              # выделить наибольшие и наименьшие значения
-              if elem > 0 # значение в векторе с index1 выделяется на фоне вектора с index2
-                result[index1][label] += 1
-              elsif elem < 0
-                result[index2][label] += 1
-              end
-            end
+        clusters.each_index do |index1|
+          subt = centers[index1].dup
+          Vector.reject_minor_values!(subt, threshold)
+          subt.each_with_index do |elem, label_index|
+            result[index1] << labels[label_index] if elem > 0
           end
-        end
-        # отсортировать и оставить только название признака
-        count = clusters_size.to_f
-        result.map! do |characteristics_hash|
-          characteristics_hash.sort_by(&:last).reverse.map(&:first)
+          result[index1].sort!
         end
         result
       end
