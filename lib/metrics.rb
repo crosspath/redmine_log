@@ -54,7 +54,7 @@ module LogPlugin
 
       # Пути
       def paths
-        ids = select(:first_id).uniq.pluck(:first_id).compact
+        ids = select(:first_id).where('first_id is not null').uniq.pluck(:first_id)
         result = {}
         ids.each { |id| result[id] = where(first_id: id).order(:created_at) }
         result

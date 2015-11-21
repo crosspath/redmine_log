@@ -37,6 +37,15 @@ module LogPlugin
         end
       end
       
+      # оптимизация
+      def hashes
+        connection.select_all(limit(nil).to_sql)
+      end
+      
+      def group_large_dataset(expr = nil)
+        hashes.group_by { |row| row[expr || yield] }
+      end
+      
       # Поиск ассоциаций с помощью алгоритма Apriori
       # Example:
       # alg = Log.apriori(Log.sessions([:http_method, :query]).map(&:last))
@@ -49,9 +58,10 @@ module LogPlugin
       # кластеризация
       
       def controllers_linkage(clusters_count = 4)
-        rows_grouped_by_user = select(:controller, :user_id).where('controller is not null').group_by(&:user_id)
+        conditions = 'controller is not null and user_id is not null'
+        rows = select(:controller, :user_id).where(conditions).group_large_dataset('user_id')
         # [[controller, ...], ...]
-        data = rows_grouped_by_user.values.map { |x| x.map(&:controller) }
+        data = rows.values.map { |group| group.map { |row| row['controller'] }}
         # теперь сформируем матрицу сходства (близости)
         # [[количество запросов пользователя j=0 по контроллеру i=0; i=1; ... i=N], ...]
         controllers = self.controllers
@@ -74,9 +84,9 @@ module LogPlugin
         options[:threshold] = options[:threshold] || 0.1
         # [[controller, ...], ...]
         conditions = 'controller is not null and action is not null and user_id is not null'
-        rows = select(:controller, :action, :user_id).where(conditions)
-        functions_by_user = rows.group_by(&:user_id).map do |user_id, logs|
-          [user_id, logs.map(&:controller_and_action)]
+        rows = select(:controller, :action, :user_id).where(conditions).group_large_dataset('user_id')
+        functions_by_user = rows.map do |user_id, logs|
+          [user_id, logs.map { |x| "#{x['controller']}##{x['action']}" }]
         end.to_h
         data = functions_by_user.values
         # теперь сформируем матрицу сходства (близости)
@@ -97,7 +107,7 @@ module LogPlugin
         users_clusters = Array.new(clusters_count) { [] }
         clusters.each_with_index do |cluster, cluster_index|
           cluster.each do |elem|
-            index = matrix.index(elem)
+            index = matrix.matrix.index(elem)
             user_actions = functions_by_user.to_a[index]
             users_clusters[cluster_index] << user_actions[0] # user_id
           end
