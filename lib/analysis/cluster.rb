@@ -3,10 +3,25 @@ module LogPlugin
     module Cluster
       module_function
       
-      def clusters(matrix, labels = [], count = 4)
-        data = matrix.matrix
-        data_set = Ai4r::Data::DataSet.new(data_items: data, data_labels: labels)
-        algorithm = Ai4r::Clusterers::Diana.new.build(data_set, count)
+      # clusterer_options: ClustererWrapper
+      def clusters(clusterer_options)
+        data = clusterer_options.data.matrix
+        # data_labels не нужен здесь, но без него алгоритм не работает
+        data_set = Ai4r::Data::DataSet.new(data_items: data, data_labels: data.first)
+        
+        clusterer = case clusterer_options.clusters_distance_method
+                      when :weighted_centroid
+                        LogPlugin::Analysis::Clusterers::WeightedKMeans
+                      when :weighted_average
+                        LogPlugin::Analysis::Clusterers::WeightedAverageLinkage
+                      else
+                        raise ArgumentError, 'Other clusterers are not supported.'
+                    end
+        
+        algorithm = clusterer.new
+        algorithm.distance_function = clusterer_options.vectors_distance_method
+        algorithm.build(data_set, clusterer_options.clusters_count)
+        
         result = algorithm.clusters
         result.map(&:data_items)
       end

@@ -2,19 +2,16 @@ Dir[File.dirname(__FILE__) + '/analysis/*.rb'].each { |file| require file }
 
 module LogPlugin
   module Analysis
-    extend ActiveSupport::Concern
-    #extend ClassMethods
-    
-    # Examples:
-    # Log.interval(Date.yesterday).views
-    # Log.interval(Date.parse('2015-05-11'), Date.parse('2015-05-17')).visits
-
-    module ClassMethods
+    class TopLevel
+      def initialize(logs)
+        @logs = logs
+      end
+      
       # Сессии
-      def each_session(fields)
+      def each_session(logs = @logs, fields)
         fields = fields.map(&:to_s)
-        select_logs = reorder(:created_at)
-        ids_logs = where('id = first_id')
+        select_logs = logs.reorder(:created_at)
+        ids_logs = logs.where('id = first_id')
         ids_logs.select_values = [:id]
         
         ids_logs.find_each do |obj|
@@ -37,18 +34,9 @@ module LogPlugin
         end
       end
       
-      # оптимизация
-      def hashes
-        connection.select_all(limit(nil).to_sql)
-      end
-      
-      def group_large_dataset(expr = nil)
-        hashes.group_by { |row| row[expr || yield] }
-      end
-      
       # Поиск ассоциаций с помощью алгоритма Apriori
       # Example:
-      # alg = Log.apriori(Log.sessions([:http_method, :query]).map(&:last))
+      # alg = analysis.apriori(analysis.sessions([:http_method, :query]).map(&:last))
       # alg.association_rules
       def apriori(transactions, min_support = 0.01, min_confidence = 0.6)
         algorithm = Apriori::Algorithm.new(min_support, min_confidence)
@@ -79,47 +67,43 @@ module LogPlugin
         {clusters: clusters, controllers: using_controllers, differences: differences, errors: errors, labels: controllers}
       end
       
-      def user_segments(clusters_count = 4, options = {})
-        options.symbolize_keys!
-        options[:threshold] = options[:threshold] || 0.1
-        # [[controller, ...], ...]
-        conditions = 'controller is not null and action is not null and user_id is not null'
-        rows = select(:controller, :action, :user_id).where(conditions).group_large_dataset('user_id')
-        functions_by_user = rows.map do |user_id, logs|
-          [user_id, logs.map { |x| "#{x['controller']}##{x['action']}" }]
-        end.to_h
-        data = functions_by_user.values
-        # теперь сформируем матрицу сходства (близости)
-        # [[количество запросов пользователя j=0 по функции i=0; i=1; ... i=N], ...]
-        functions = data.flatten.uniq
-        matrix = LogPlugin::Analysis::Matrix.new(data) do |data_row, matrix_row|
-          functions.each { |c| matrix_row << data_row.select { |elem| elem == c }.count }
-        end
-        # найдём кластеры и посчитаем расстояния между ними
-        clusters = Cluster.clusters(matrix, functions, clusters_count)
-        differences = Cluster.clusters_differences(clusters)
-        # по каждому кластеру посчитаем ошибку
-        errors = Cluster.clusters_errors(clusters)
-        # надо определить, что является общим для пользователей в каждом кластере
-        characteristics = Cluster.common_characteristics(clusters, functions, options)
+      def user_segments(clusterer_options = nil)
+        clusterer_options ||= LogPlugin::Analysis::ClustererWrapper::UserSegments.new
+        clusterer_options.clusters_count ||= 4
+        clusterer_options.vectors_distance_method ||= -> (a, b) { Ai4r::Data::Proximity.squared_euclidean_distance(a, b) }
+        clusterer_options.clusters_distance_method ||= :weighted_centroid
+        clusterer_options.set_data(@logs) unless clusterer_options.data
+       
+        clusterer_options.run
         
-        # какие пользователи к каким кластерам относятся
-        users_clusters = Array.new(clusters_count) { [] }
-        clusters.each_with_index do |cluster, cluster_index|
-          cluster.each do |elem|
-            index = matrix.matrix.index(elem)
-            user_actions = functions_by_user.to_a[index]
-            users_clusters[cluster_index] << user_actions[0] # user_id
-          end
-        end
-        
-        {clusters: clusters, characteristics: characteristics, users_clusters: users_clusters,
-          differences: differences, errors: errors, labels: functions}
+        clusterer_options
       end
     end
   end
 end
 
 ActionDispatch::Callbacks.to_prepare do
-  Log.send(:include, LogPlugin::Analysis) unless Log.included_modules.include?(LogPlugin::Analysis)
+  unless Log.respond_to?(:analysis)
+    class Log
+      class << self
+        def analysis
+          LogPlugin::Analysis::TopLevel.new(self.to_ar_relation)
+        end
+        
+        # оптимизация
+        def hashes
+          connection.select_all(self.to_ar_relation.to_sql)
+        end
+        
+        def group_large_dataset(expr = nil)
+          hashes.group_by { |row| row[expr || yield] }
+        end
+        
+        def to_ar_relation
+          # use AR_Relation
+          self.from(table_name) unless respond_to?(:to_sql)
+        end
+      end
+    end
+  end
 end
